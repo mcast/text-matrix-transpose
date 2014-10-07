@@ -37,7 +37,8 @@ def main():
         print('indexed')
     cols2 = rows1 = i
 
-#blech    print('in_seek = ' + in_seek.values().tostring())
+    print('in_seek = ' + repr(in_seek.values()))
+    print('out_len = ' + repr(out_len.values()))
 
     with open(path_in) as fd_in, open(path_out, 'w') as fd_out:
         print('transposing')
