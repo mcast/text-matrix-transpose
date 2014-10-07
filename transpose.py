@@ -38,9 +38,17 @@ def main():
             i += 1
         print('indexed')
     cols2 = rows1 = i
+    longrow = max(out_len.values())
 
     print('in_seek = ' + repr(in_seek.values()))
-    print('out_len = ' + repr(out_len.values()))
+    print('out_len = ' + repr(out_len.values()), ", longest = ", longrow)
+
+    # in-place would save space; rename?
+    out_pos = { 0: 0}
+    for x in range(cols1):
+        out_pos[x+1] = out_pos[x] + out_len[x]
+
+    print('out_pos = ' + repr(out_pos.values()))
 
     with open(path_in) as fd_in, open(path_out, 'w') as fd_out:
         print('transposing')
