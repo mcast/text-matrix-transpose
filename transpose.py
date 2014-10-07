@@ -25,14 +25,16 @@ def main():
         while True:
             tell = fd_in.tell()
             line = fd_in.readline()
+            in_seek[i] = tell
             if line == '':
                 break
             row = line.split(separator)
             if len(row) != cols1:
-                raise "len mismatch ln" + i
+                raise Exception("%d: column count mismatch (got %d, expect %d)" %
+                                (i+1, len(row), cols1))
             for x in range(cols1):
-                out_len[x] += len(row[x])
-            in_seek[i] = tell
+                out_len[x] += (len(row[x])
+                               + (1,0)[x == cols1-1]) # for the separator
             i += 1
         print('indexed')
     cols2 = rows1 = i
