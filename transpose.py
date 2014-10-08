@@ -16,6 +16,7 @@ def main():
 
     in_seek = {}
     out_len = {}
+    longval = 0                 # including a separator
     for x in range(cols1):
         out_len[x] = 0
 
@@ -33,8 +34,11 @@ def main():
                 raise Exception("%d: column count mismatch (got %d, expect %d)" %
                                 (i+1, len(row), cols1))
             for x in range(cols1):
-                out_len[x] += (len(row[x])
-                               + (1,0)[x == cols1-1]) # for the separator
+                lenval = (len(row[x])
+                          + (1,0)[x == cols1-1]) # for the separator
+                out_len[x] += lenval
+                if lenval > longval:
+                    longval = lenval
             i += 1
         print('indexed')
     cols2 = rows1 = i
@@ -57,8 +61,10 @@ def main():
             for row1 in range(rows1):
                 fd_in.seek(in_seek[row1])
                 s = ''
+                chars = fd_in.read(longval)
                 while True:
-                    char = fd_in.read(1)
+                    char = chars[0]
+                    chars = chars[1:]
                     if char == separator or char == '\n':
                         break
                     s += char
