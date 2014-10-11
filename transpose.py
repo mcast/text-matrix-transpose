@@ -20,7 +20,8 @@ class TextTransposer:
         # no data yet
         self.colsU = -1
         self.rowsU = -1
-        self.longcell = 0
+        self.longcell = 0       # without separator
+        self.longrowU = 0       # with \n
 
     def rowsT(self):
         return self.colsU
@@ -57,6 +58,7 @@ class TextTransposer:
             print("  colsU=(%s)" % repr(colsU))
             if passnum == 0:
                 if self.colsU < 0:
+                    # first row seen ever
                     self.colsU = len(colsU)
                     keep_colU = range(colU_start, int(self.colsU / 2))
                     print("    set keep_colU = %s" % keep_colU)
@@ -65,6 +67,11 @@ class TextTransposer:
                                     (rowU+1, len(colsU), self.colsU))
                 rowU += 1
                 self.rowU_tell[rowU] = self.fd_in.tell()
+                longest = max(map(len, colsU))
+                if longest > self.longcell:
+                    self.longcell = longest
+                if len(line) > self.longrowU:
+                    self.longrowU = len(line)
             else:
                 rowU += 1
 
