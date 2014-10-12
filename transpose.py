@@ -2,6 +2,12 @@
 import sys
 import os
 
+import zlib
+# observe that the 42.6 MiB sample input compresses
+# on gen1 = Intel(R) Xeon(R) CPU E5-2660 0 @ 2.20GHz
+#   by 86% with 0.5 CPUsec
+#   by 91% with 1.75 CPUsec
+
 
 class TextTransposer:
     """Suffix conventions: U implies input (untransposed), T implies
