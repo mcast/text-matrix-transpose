@@ -54,10 +54,8 @@ class TextTransposer:
             line = self.fd_in.readline()
             if line == b'':
                 break           # eof
-            print("  got line=%s, sep=%s" % (repr(line), self.separator))
             colsU = line.split(self.separator)
             colsU[-1] = colsU[-1].rstrip(b'\n')
-            print("  colsU=(%s)" % repr(colsU))
             if passnum == 0:
                 if self.colsU < 0:
                     # first row seen ever
@@ -88,9 +86,7 @@ class TextTransposer:
                 for x in keep_colU:
                     self.rowT[x] += self.separator + colsU[x]
 
-        print("    ready is %s" % self.rowT)
         for y in keep_colU:
-            print("  write row %d" % y)
             self.fd_out.write( self.rowT[y] + b'\n' )
         self.rowT = {}
         print("  done loop %d, next is col %d" % (passnum, keep_colU.stop))
@@ -117,7 +113,6 @@ class TextTransposer:
             purge = range(new_colU_keepn, keep_colU.stop)
             if self.rowT != {}: # nothing to purge yet, if we're called on first row
                 for x in purge:
-                    print("      dropped rowT[%d] = %s" % (x, self.rowT[x]))
                     del self.rowT[x]
             self.colU_keepn = new_colU_keepn
             return range(keep_colU.start, new_colU_keepn)
