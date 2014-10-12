@@ -52,11 +52,11 @@ class TextTransposer:
 
         while True:
             line = self.fd_in.readline()
-            if rowU % 1000 == 0:
+            if rowU % 10000 == 0:
                 print("  rowU:%d" % rowU)
-            if rowU > 50000:
-                print("bail out early")
-                break
+            # if rowU > 50000:
+            #     print("bail out early")
+            #     break
             if line == b'':
                 break           # eof
             colsU = line.split(self.separator)
@@ -93,14 +93,18 @@ class TextTransposer:
     def stash_rowU(self, rowU, keep_colU, colsU):
         if rowU == 1:
             for x in keep_colU:
-                self.rowT[x]  = colsU[x]
+                self.rowT[x] = [ colsU[x] ]
         else:
             for x in keep_colU:
-                self.rowT[x] += self.separator + colsU[x]
+                self.rowT[x].append(colsU[x])
 
     def dump_kept(self, keep_colU):
+        widthT = range(0, self.colsT())
+        lastT = self.colsT() - 1
         for y in keep_colU:
-            self.fd_out.write( self.rowT[y] + b'\n' )
+            for x in widthT:
+                self.fd_out.write(self.rowT[y][x])
+                self.fd_out.write((self.separator, b'\n')[ x == lastT ])
         self.rowT = {}
 
     def set_memlimit(self, keep_colU):
