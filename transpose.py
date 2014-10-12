@@ -83,10 +83,10 @@ class TextTransposer:
 
             if rowU == 1:
                 for x in keep_colU:
-                    self.rowT[x]  = colsU[x] + self.separator
+                    self.rowT[x]  = colsU[x]
             else:
                 for x in keep_colU:
-                    self.rowT[x] += colsU[x] + self.separator
+                    self.rowT[x] += self.separator + colsU[x]
 
         print("    ready is %s" % self.rowT)
         for y in keep_colU:
