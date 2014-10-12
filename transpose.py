@@ -72,8 +72,10 @@ class TextTransposer:
                 if longest > self.longcell:
                     self.longcell = longest
                     keep_colU = self.set_memlimit(keep_colU)
+                    print("    longcell:%d => colU_keepn:%d" % (longest, self.colU_keepn))
                 if len(line) > self.longrowU:
                     self.longrowU = len(line)
+                    print("    longrow:%d" % self.longrowU)
                 rowU += 1
                 self.rowU_tell[rowU] = self.fd_in.tell()
             else:
@@ -99,6 +101,8 @@ class TextTransposer:
         colsU == rowsT in stay in memory budget."""
         bytes_per_rowT = (self.longcell + 1) * self.rowsT() # +1 for sep
         new_colU_keepn = int(self.mem_budget / bytes_per_rowT)
+        print("      set_memlimit(%s, %.3f MiB) bytes_per_rowT:%d for longcell:%d gives %d colU" %
+              (keep_colU, self.mem_budget / (1024*1024.0), bytes_per_rowT, self.longcell, new_colU_keepn))
         if new_colU_keepn >= self.colU_keepn:
             # plenty, continue
             return keep_colU
@@ -113,6 +117,7 @@ class TextTransposer:
             purge = range(new_colU_keepn, keep_colU.stop)
             if self.rowT != {}: # nothing to purge yet, if we're called on first row
                 for x in purge:
+                    print("      dropped rowT[%d] = %s" % (x, self.rowT[x]))
                     del self.rowT[x]
             self.colU_keepn = new_colU_keepn
             return range(keep_colU.start, new_colU_keepn)
