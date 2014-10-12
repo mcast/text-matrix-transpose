@@ -35,7 +35,6 @@ class TextTransposer:
         nextcolU = 0
         while True:
             nextcolU = self.loop(passnum, nextcolU)
-            print("  next loop = %s" % nextcolU)
             if nextcolU == None:
                 break
             passnum += 1
@@ -48,7 +47,6 @@ class TextTransposer:
         else:
             self.fd_in.seek(self.rowU_tell[0])
             keep_colU = range(colU_start, min(self.colsU, colU_start + self.colU_keepn))
-            print("    set keep_colU = %s" % keep_colU)
 
         while True:
             line = self.fd_in.readline()
@@ -62,7 +60,6 @@ class TextTransposer:
                     self.colsU = len(colsU)
                     self.colU_keepn = self.colsU # initially keep all
                     keep_colU = range(colU_start, self.colsU)
-                    print("    set keep_colU = %s" % keep_colU)
                 elif len(colsU) != self.colsU:
                     raise Exception("%d: column count mismatch (got %d, expect %d)" %
                                     (rowU+1, len(colsU), self.colsU))
@@ -70,10 +67,8 @@ class TextTransposer:
                 if longest > self.longcell:
                     self.longcell = longest
                     keep_colU = self.set_memlimit(keep_colU)
-                    print("    longcell:%d => colU_keepn:%d" % (longest, self.colU_keepn))
                 if len(line) > self.longrowU:
                     self.longrowU = len(line)
-                    print("    longrow:%d" % self.longrowU)
                 rowU += 1
                 self.rowU_tell[rowU] = self.fd_in.tell()
             else:
@@ -89,7 +84,6 @@ class TextTransposer:
         for y in keep_colU:
             self.fd_out.write( self.rowT[y] + b'\n' )
         self.rowT = {}
-        print("  done loop %d, next is col %d" % (passnum, keep_colU.stop))
         return (keep_colU.stop, None)[keep_colU.stop == self.colsU]
 
     def set_memlimit(self, keep_colU):
@@ -97,8 +91,6 @@ class TextTransposer:
         colsU == rowsT in stay in memory budget."""
         bytes_per_rowT = (self.longcell + 1) * self.rowsT() # +1 for sep
         new_colU_keepn = int(self.mem_budget / bytes_per_rowT)
-        print("      set_memlimit(%s, %.3f MiB) bytes_per_rowT:%d for longcell:%d gives %d colU" %
-              (keep_colU, self.mem_budget / (1024*1024.0), bytes_per_rowT, self.longcell, new_colU_keepn))
         if new_colU_keepn >= self.colU_keepn:
             # plenty, continue
             return keep_colU
