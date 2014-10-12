@@ -52,6 +52,11 @@ class TextTransposer:
 
         while True:
             line = self.fd_in.readline()
+            if rowU % 1000 == 0:
+                print("  rowU:%d" % rowU)
+            if rowU > 50000:
+                print("bail out early")
+                break
             if line == b'':
                 break           # eof
             colsU = line.split(self.separator)
@@ -79,18 +84,24 @@ class TextTransposer:
             else:
                 rowU += 1
 
-            if rowU == 1:
-                for x in keep_colU:
-                    self.rowT[x]  = colsU[x]
-            else:
-                for x in keep_colU:
-                    self.rowT[x] += self.separator + colsU[x]
+            self.stash_rowU(rowU, keep_colU, colsU)
 
+        self.dump_kept(keep_colU)
+        print("  done loop %d, next is col %d" % (passnum, keep_colU.stop))
+        return (keep_colU.stop, None)[keep_colU.stop == self.colsU]
+
+    def stash_rowU(self, rowU, keep_colU, colsU):
+        if rowU == 1:
+            for x in keep_colU:
+                self.rowT[x]  = colsU[x]
+        else:
+            for x in keep_colU:
+                self.rowT[x] += self.separator + colsU[x]
+
+    def dump_kept(self, keep_colU):
         for y in keep_colU:
             self.fd_out.write( self.rowT[y] + b'\n' )
         self.rowT = {}
-        print("  done loop %d, next is col %d" % (passnum, keep_colU.stop))
-        return (keep_colU.stop, None)[keep_colU.stop == self.colsU]
 
     def set_memlimit(self, keep_colU):
         """Longest cell (longcell) was increased.  We may need to store fewer
@@ -130,4 +141,17 @@ def main():
 
 
 if __name__ == '__main__':
+
+    # from https://docs.python.org/3/library/profile.html#profile.Profile
+    import cProfile, pstats, io
+    pr = cProfile.Profile()
+    pr.enable()
+
     main()
+
+    pr.disable()
+    s = io.StringIO()
+    sortby = 'cumulative'
+    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+    ps.print_stats()
+    print(s.getvalue())
