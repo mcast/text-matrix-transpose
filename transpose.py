@@ -86,6 +86,8 @@ class TextTransposer:
 
             self.stash_rowU(rowU, keep_colU, colsU)
 
+        if passnum == 0:
+            self.rowsU = rowU
         self.dump_kept(keep_colU)
         print("  done loop %d, next is col %d" % (passnum, keep_colU.stop))
         return (keep_colU.stop, None)[keep_colU.stop == self.colsU]
