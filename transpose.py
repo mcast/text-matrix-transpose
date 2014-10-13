@@ -54,9 +54,6 @@ class TextTransposer:
             line = self.fd_in.readline()
             if rowU % 10000 == 0:
                 print("  rowU:%d" % rowU)
-            # if rowU > 50000:
-            #     print("bail out early")
-            #     break
             if line == b'':
                 break           # eof
             colsU = line.split(self.separator)
