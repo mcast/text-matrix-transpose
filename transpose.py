@@ -143,7 +143,8 @@ class TextTransposer:
         colsU == rowsT in stay in memory budget."""
         bytes_per_rowT = (self.longcell + 1) * rowsU # +1 for sep
         old_colU_keepn = self.colU_keepn
-        new_colU_keepn = int(self.mem_budget / bytes_per_rowT)
+        new_colU_keepn = int(self.mem_budget / bytes_per_rowT
+                             / 1.67) # empirical fudge factor, Python 3.3.2 on x86_64
         self.colU_keepn = min(old_colU_keepn, new_colU_keepn)
         if new_colU_keepn != old_colU_keepn:
             print("      set_memlimit(%s, %.3f MiB, rowsU:%d) bytes_per_rowT:%d for longcell:%d gives colU:%d" %
