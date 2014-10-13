@@ -1,4 +1,9 @@
 #! /usr/bin/env python3
+
+# from __future__ import absolute_import, division, print_function
+# from builtins import range
+### dnw on the 2.7 here
+
 import sys
 import os
 import warnings
@@ -194,15 +199,15 @@ def main():
 if __name__ == '__main__':
 
     # from https://docs.python.org/3/library/profile.html#profile.Profile
-    import cProfile, pstats, io
-    pr = cProfile.Profile()
-    pr.enable()
+#    import cProfile, pstats, io
+#    pr = cProfile.Profile()
+#    pr.enable()
 
     main()
 
-    pr.disable()
-    s = io.StringIO()
-    sortby = 'cumulative'
-    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
-    ps.print_stats()
-    print(s.getvalue())
+#    pr.disable()
+#    s = io.StringIO()
+#    sortby = 'cumulative'
+#    ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+#    ps.print_stats()
+#    print(s.getvalue())
