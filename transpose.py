@@ -60,20 +60,23 @@ class TextTransposer:
         else:
             self.fd_in.seek(self.rowU_tell[0])
             keep_colU = range(colU_start, min(self.colsU, colU_start + self.colU_keepn))
+            need_widthU = keep_colU.stop - keep_colU.start
+            need_bytes = (self.longcell + 1) * need_widthU
             print("    set keep_colU = %s" % keep_colU)
 
-        while True:
-            line = self.fd_in.readline()
-            if rowU % 10000 == 0:
-                print("  rowU:%d" % rowU)
-            if line == b'':
-                break           # eof
-            colsU = line.split(self.separator)
-            if colsU[0] == b'':
-                # leading space on the row
-                colsU.pop(0)
-            colsU[-1] = colsU[-1].rstrip(b'\n')
-            if passnum == 0:
+        if passnum == 0:
+            while True:
+                if rowU % 10000 == 0:
+                    print("  rowU:%d" % rowU)
+                line = self.fd_in.readline()
+                if line == b'':
+                    break       # eof
+                colsU = line.split(self.separator)
+                while colsU[0] == b'':
+                    # leading space on the row
+                    colsU.pop(0)
+                    self.rowU_tell[rowU] += 1
+                colsU[-1] = colsU[-1].rstrip(b'\n')
                 if self.colsU < 0:
                     # first row seen ever
                     self.colsU = len(colsU)
@@ -97,10 +100,26 @@ class TextTransposer:
                 elif rowU % 1000 == 0:
                     keep_colU = self.set_memlimit(keep_colU, self.est_rowsU(rowU))
                 self.rowU_tell[rowU] = self.fd_in.tell()
-            else:
-                rowU += 1
+                self.stash_rowU(rowU, keep_colU, colsU)
 
-            self.stash_rowU(rowU, keep_colU, colsU)
+        else:
+            while True:
+                if rowU % 10000 == 0:
+                    print("  rowU:%d" % rowU)
+                if rowU == self.rowsU:
+                    break       # eof
+                self.fd_in.seek(self.rowU_tell[rowU])
+                txt = self.fd_in.readline()
+                colsU = txt.split(self.separator)
+                colsU[-1] = colsU[-1].rstrip(b'\n')
+#                txt = self.fd_in.read(need_bytes)
+  # need to trim LF
+#                txti = iter(txt) # here we split manually
+#                for x in keep_colU:
+#                    cell_len = 0
+
+                rowU += 1
+                self.stash_rowU(rowU, keep_colU, colsU)
 
         if passnum == 0:
             self.rowsU = rowU
@@ -134,17 +153,19 @@ class TextTransposer:
 
     def stash_rowU(self, rowU, keep_colU, colsU):
         stashable = range(keep_colU.start + 1, keep_colU.stop)
-        # We don't stash colsU[keep_colU.start], because we can stream
+        # We don't stash colsU[0], because we can stream
         # it during reading.  Still, keep it in the range to simplify
         # other logic / not yet refactored
         if rowU == 1:
             for x in stashable:
-                self.rowT[x] = [ colsU[x] ]
+                self.rowT[x] = [ colsU[x - keep_colU.start] ]
         else:
-            self.fd_out.write(self.separator) # non-stashed
+            self.fd_out.write(self.separator) # non-stashed, sep before
             for x in stashable:
-                self.rowT[x].append(colsU[x])
-        self.fd_out.write(colsU[keep_colU.start]) # non-stashed
+                self.rowT[x].append(colsU[x - keep_colU.start])
+        nonstash = colsU[0] # non-stashed
+        self.fd_out.write(nonstash)
+        self.rowU_tell[rowU-1] += len(nonstash) + 1 # +1 for sep after
 
     def dump_kept(self, keep_colU):
         self.fd_out.write(b'\n') # close the non-stashed output
@@ -153,7 +174,9 @@ class TextTransposer:
         stashable = range(keep_colU.start + 1, keep_colU.stop)
         for y in stashable:
             for x in widthT:
-                self.fd_out.write(self.rowT[y][x])
+                cell = self.rowT[y][x]
+                self.rowU_tell[x] += len(cell) + 1 # +1 for sep
+                self.fd_out.write(cell)
                 self.fd_out.write((self.separator, b'\n')[ x == lastT ])
         self.rowT = {}
 
