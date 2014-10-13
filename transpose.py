@@ -23,6 +23,7 @@ class TextTransposer:
         self.rowsU = -1
         self.longcell = 0       # without separator
         self.longrowU = 0       # with \n
+        self.shortrowU = -1     # with \n
         self.colU_keepn = -1
 
     def rowsT(self):
@@ -45,6 +46,11 @@ class TextTransposer:
         if passnum == 0:
             keep_colU = None    # init on first row
             self.rowU_tell[rowU] = self.fd_in.tell()
+
+            # get file size -- from http://stackoverflow.com/a/19079887
+            self.fd_in.seek(0, os.SEEK_END)
+            self.fd_in_size = self.fd_in.tell()
+            self.fd_in.seek(self.rowU_tell[rowU], os.SEEK_SET)
         else:
             self.fd_in.seek(self.rowU_tell[0])
             keep_colU = range(colU_start, min(self.colsU, colU_start + self.colU_keepn))
@@ -68,15 +74,19 @@ class TextTransposer:
                 elif len(colsU) != self.colsU:
                     raise Exception("%d: column count mismatch (got %d, expect %d)" %
                                     (rowU+1, len(colsU), self.colsU))
-                longest = max(map(len, colsU))
-                if longest > self.longcell:
-                    self.longcell = longest
-                    keep_colU = self.set_memlimit(keep_colU)
-                    print("    longcell:%d => colU_keepn:%d" % (longest, self.colU_keepn))
+                if self.shortrowU == -1 or len(line) < self.shortrowU:
+                    self.shortrowU = len(line)
+                    print("    shortrow:%d" % self.shortrowU)
                 if len(line) > self.longrowU:
                     self.longrowU = len(line)
                     print("    longrow:%d" % self.longrowU)
+                longest = max(map(len, colsU))
                 rowU += 1
+                if longest > self.longcell:
+                    self.longcell = longest
+                    keep_colU = self.set_memlimit(keep_colU, self.est_rowsU(rowU))
+                elif rowU % 1000 == 0:
+                    keep_colU = self.set_memlimit(keep_colU, self.est_rowsU(rowU))
                 self.rowU_tell[rowU] = self.fd_in.tell()
             else:
                 rowU += 1
@@ -86,8 +96,27 @@ class TextTransposer:
         if passnum == 0:
             self.rowsU = rowU
         self.dump_kept(keep_colU)
+        if passnum == 0:
+            # re-evaluate, now we have a real rowsU
+            self.rowsU = rowU
+            self.set_memlimit(keep_colU, rowU)
         print("  done loop %d, next is col %d" % (passnum, keep_colU.stop))
         return (keep_colU.stop, None)[keep_colU.stop == self.colsU]
+
+    def est_rowsU(self, curr_rowU):
+        """During first pass, estimate rowsU count from available data.
+        Early over-estimates may reduce the useful work done by passnum == 0.
+        Might do better counting actual memory usage, or bytes stashed in rowT[]."""
+        fpos = self.fd_in.tell()
+        min_rows = self.fd_in_size / self.longrowU
+        seen_frac = fpos / self.fd_in_size
+        if seen_frac < 0.25:
+            # near start of file => inaccurate stats, give a low estimate
+            return max(int(min_rows), curr_rowU)
+        else:
+            avglen_rows = curr_rowU * 1.0 * self.fd_in_size / fpos
+            # max_rows = self.fd_in_size / self.shortrowU
+            return max(int(avglen_rows), curr_rowU)
 
     def stash_rowU(self, rowU, keep_colU, colsU):
         if rowU == 1:
@@ -106,30 +135,35 @@ class TextTransposer:
                 self.fd_out.write((self.separator, b'\n')[ x == lastT ])
         self.rowT = {}
 
-    def set_memlimit(self, keep_colU):
+    def set_memlimit(self, keep_colU, rowsU):
         """Longest cell (longcell) was increased.  We may need to store fewer
         colsU == rowsT in stay in memory budget."""
-        bytes_per_rowT = (self.longcell + 1) * self.rowsT() # +1 for sep
+        bytes_per_rowT = (self.longcell + 1) * rowsU # +1 for sep
+        old_colU_keepn = self.colU_keepn
         new_colU_keepn = int(self.mem_budget / bytes_per_rowT)
-        print("      set_memlimit(%s, %.3f MiB) bytes_per_rowT:%d for longcell:%d gives %d colU" %
-              (keep_colU, self.mem_budget / (1024*1024.0), bytes_per_rowT, self.longcell, new_colU_keepn))
-        if new_colU_keepn >= self.colU_keepn:
+        self.colU_keepn = min(old_colU_keepn, new_colU_keepn)
+        if new_colU_keepn != old_colU_keepn:
+            print("      set_memlimit(%s, %.3f MiB, rowsU:%d) bytes_per_rowT:%d for longcell:%d gives colU:%d" %
+                  (keep_colU, self.mem_budget / (1024*1024.0), rowsU,
+                   bytes_per_rowT, self.longcell, self.colU_keepn))
+        if self.colU_keepn >= old_colU_keepn:
             # plenty, continue
+            # new_colU_keepn could be larger than current, but that won't bring rowT[] elements back
             return keep_colU
-        elif new_colU_keepn < 1:
+        elif self.colU_keepn < 1:
             # this implemention doesn't support streaming one row at a
             # time, it will always buffer it
             mib = 1024*1024.0
-            raise Exception("Memory budget (%.3f MiB) insufficient for one row (up to %.3f MiB from longcell:%d bytes)" %
-                            (self.mem_budget / mib, bytes_per_rowT / mib, self.longcell))
+            raise Exception("Memory budget (%.3f MiB) insufficient for one row (up to %.3f MiB from colsT:%d * longcell:%d bytes)" %
+                            (self.mem_budget / mib, bytes_per_rowT / mib, self.colsT(), self.longcell))
         else:
             # time to downsize
-            purge = range(new_colU_keepn, keep_colU.stop)
+            purge = range(self.colU_keepn, keep_colU.stop)
             if self.rowT != {}: # nothing to purge yet, if we're called on first row
+                print("      purge rowT[%s]" % purge)
                 for x in purge:
                     del self.rowT[x]
-            self.colU_keepn = new_colU_keepn
-            return range(keep_colU.start, new_colU_keepn)
+            return range(keep_colU.start, self.colU_keepn)
 
 def main():
 
