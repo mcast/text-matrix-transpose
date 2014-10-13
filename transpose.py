@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 import sys
 import os
+import warnings
 
 
 class TextTransposer:
@@ -103,6 +104,11 @@ class TextTransposer:
             # re-evaluate, now we have a real rowsU
             self.rowsU = rowU
             self.set_memlimit(keep_colU, rowU)
+            if self.colU_keepn == 1:
+                mib = 1024*1024.0
+                warnings.warn("Streaming only! Memory budget (%.3f MiB) insufficient for one row (up to %.3f MiB from colsT:%d * longcell:%d bytes)" %
+                              (self.mem_budget / mib, self.bytes_per_rowT / mib, self.colsT(), self.longcell))
+
         print("  done loop %d, next is col %d" % (passnum, keep_colU.stop))
         return (keep_colU.stop, None)[keep_colU.stop == self.colsU]
 
@@ -122,17 +128,25 @@ class TextTransposer:
             return max(int(avglen_rows), curr_rowU)
 
     def stash_rowU(self, rowU, keep_colU, colsU):
+        stashable = range(keep_colU.start + 1, keep_colU.stop)
+        # We don't stash colsU[keep_colU.start], because we can stream
+        # it during reading.  Still, keep it in the range to simplify
+        # other logic / not yet refactored
         if rowU == 1:
-            for x in keep_colU:
+            for x in stashable:
                 self.rowT[x] = [ colsU[x] ]
         else:
-            for x in keep_colU:
+            self.fd_out.write(self.separator) # non-stashed
+            for x in stashable:
                 self.rowT[x].append(colsU[x])
+        self.fd_out.write(colsU[keep_colU.start]) # non-stashed
 
     def dump_kept(self, keep_colU):
+        self.fd_out.write(b'\n') # close the non-stashed output
         widthT = range(0, self.colsT())
         lastT = self.colsT() - 1
-        for y in keep_colU:
+        stashable = range(keep_colU.start + 1, keep_colU.stop)
+        for y in stashable:
             for x in widthT:
                 self.fd_out.write(self.rowT[y][x])
                 self.fd_out.write((self.separator, b'\n')[ x == lastT ])
@@ -142,10 +156,12 @@ class TextTransposer:
         """Longest cell (longcell) was increased.  We may need to store fewer
         colsU == rowsT in stay in memory budget."""
         bytes_per_rowT = (self.longcell + 1) * rowsU # +1 for sep
+        self.bytes_per_rowT = bytes_per_rowT
         old_colU_keepn = self.colU_keepn
         new_colU_keepn = int(self.mem_budget / bytes_per_rowT
                              / 1.67) # empirical fudge factor, Python 3.3.2 on x86_64
-        self.colU_keepn = min(old_colU_keepn, new_colU_keepn)
+        self.colU_keepn = min(old_colU_keepn,
+                              new_colU_keepn + 1) # +1 for the non-stashed
         if new_colU_keepn != old_colU_keepn:
             print("      set_memlimit(%s, %.3f MiB, rowsU:%d) bytes_per_rowT:%d for longcell:%d gives colU:%d" %
                   (keep_colU, self.mem_budget / (1024*1024.0), rowsU,
@@ -154,12 +170,6 @@ class TextTransposer:
             # plenty, continue
             # new_colU_keepn could be larger than current, but that won't bring rowT[] elements back
             return keep_colU
-        elif self.colU_keepn < 1:
-            # this implemention doesn't support streaming one row at a
-            # time, it will always buffer it
-            mib = 1024*1024.0
-            raise Exception("Memory budget (%.3f MiB) insufficient for one row (up to %.3f MiB from colsT:%d * longcell:%d bytes)" %
-                            (self.mem_budget / mib, bytes_per_rowT / mib, self.colsT(), self.longcell))
         else:
             # time to downsize
             purge = range(self.colU_keepn, keep_colU.stop)
