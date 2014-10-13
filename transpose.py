@@ -63,6 +63,9 @@ class TextTransposer:
             if line == b'':
                 break           # eof
             colsU = line.split(self.separator)
+            if colsU[0] == b'':
+                # leading space on the row
+                colsU.pop(0)
             colsU[-1] = colsU[-1].rstrip(b'\n')
             if passnum == 0:
                 if self.colsU < 0:
