@@ -71,11 +71,13 @@ class TextTransposer:
                 line = self.fd_in.readline()
                 if line == b'':
                     break       # eof
-                colsU = line.split(self.separator)
-                while colsU[0] == b'':
+                skip = 0
+                while line[skip] == self.separator[0]:
                     # leading space on the row
-                    colsU.pop(0)
+                    skip += 1
                     self.rowU_tell[rowU] += 1
+                colsU = line[skip:].split(self.separator)
+
                 colsU[-1] = colsU[-1].rstrip(b'\n')
                 if self.colsU < 0:
                     # first row seen ever
