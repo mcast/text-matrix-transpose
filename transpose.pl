@@ -214,13 +214,15 @@ sub est_rowsU {
 
 sub stash_rowU {
   my ($self, $rowU, $keep_colU, $colsU_l) = @_;
-  my $stashable = Range->new($keep_colU->start + 1, $keep_colU->stop);
+  my @stashable = Range->new($keep_colU->start + 1, $keep_colU->stop)->incl;
   # We don't stash colsU[0], because we can stream
   # it during reading.  Still, keep it in the range to simplify
   # other logic / not yet refactored
   print { $self->fd_out } $self->separator unless $rowU == 1; # non-stashed, sep before
-  foreach my $x ($stashable->start .. $stashable->stop - 1) {
-    push @{ $self->rowT->{$x} }, $colsU_l->[ $x - $keep_colU->start ];
+  my $rT = $self->rowT;
+  my $kcUs = $keep_colU->start;
+  foreach my $x ($stashable[0] .. $stashable[1]) {
+    push @{ $rT->{$x} }, $colsU_l->[ $x - $kcUs ];
   }
   my $nonstash = $colsU_l->[0]; # non-stashed
   print { $self->fd_out } $nonstash;
@@ -230,15 +232,21 @@ sub stash_rowU {
 
 sub dump_kept {
   my ($self, $keep_colU) = @_;
-  print { $self->fd_out } "\n"; # close the non-stashed output
-  my $widthT = Range->new(0, $self->colsT);
+  my $fd_out = $self->fd_out;
+  my $sep = $self->separator;
+  my $rUt = $self->rowU_tell;
+  my $rT = $self->rowT;
+  my @widthT = Range->new(0, $self->colsT)->incl;
   my $lastT = $self->colsT - 1;
-  my $stashable = Range->new($keep_colU->start + 1, $keep_colU->stop);
-  foreach my $y ($stashable->start .. $stashable->stop - 1) { # XXX: weirdly non-perl
-    foreach my $x ($widthT->start .. $widthT->stop - 1) {
-      my $cell = $self->rowT->{$y}[$x];
-      $self->rowU_tell->[$x] += length($cell) + 1; # +1 for sep
-      print { $self->fd_out } $cell, $x == $lastT ? "\n" : $self->separator;
+  my @stashable = Range->new($keep_colU->start + 1, $keep_colU->stop)->incl;
+
+
+  print {$fd_out} "\n"; # close the non-stashed output
+  foreach my $y (@stashable[0] .. $stashable[1]) {
+    foreach my $x ($widthT[0] .. $widthT[1]) {
+      my $cell = $rT->{$y}[$x];
+      $rUt->[$x] += length($cell) + 1; # +1 for sep
+      print {$fd_out} $cell, $x == $lastT ? "\n" : $sep;
     }
   }
   $self->rowT({});
@@ -270,7 +278,7 @@ sub set_memlimit {
     if (keys %{ $self->rowT }) {
       printf "      purge rowT[%s]\n", $purge->to_string;
       foreach my $i ($purge->start .. $purge->stop - 1) {
-        delete @{ $self->rowT }{ $i };
+        delete ${ $self->rowT }{ $i };
       }
     } # else nothing to purge yet, we're called on first row
     return Range->new($keep_colU->start, $self->colU_keepn);
@@ -289,6 +297,12 @@ package Range;
 sub new {
   my ($pkg, $start, $stop) = @_;
   return bless [ $start, $stop ], $pkg;
+}
+
+sub incl {
+  my ($self) = @_;
+  die unless wantarray;
+  return ($self->[0], $self->[1] - 1);
 }
 
 sub start { $_[0][0] }
