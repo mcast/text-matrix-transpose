@@ -71,23 +71,27 @@ class TextTransposer:
                 line = self.fd_in.readline()
                 if line == b'':
                     break       # eof
-                skip = 0
-                while line[skip] == self.separator[0]:
-                    # leading space on the row
-                    skip += 1
-                    self.rowU_tell[rowU] += 1
-                colsU = line[skip:].split(self.separator)
 
-                colsU[-1] = colsU[-1].rstrip(b'\n')
                 if self.colsU < 0:
                     # first row seen ever
+                    skip = 0
+                    while line[skip] == self.separator[0]:
+                        # leading space on the row
+                        skip += 1
+                        self.rowU_tell[rowU] += 1
+                    colsU = line[skip:].split(self.separator)
+                    colsU[-1] = colsU[-1].rstrip(b'\n')
+
                     self.colsU = len(colsU)
                     self.colU_keepn = self.colsU # initially keep all
                     keep_colU = range(colU_start, self.colsU)
                     print("    set keep_colU = %s" % keep_colU)
-                elif len(colsU) != self.colsU:
-                    raise Exception("%d: column count mismatch (got %d, expect %d)" %
-                                    (rowU+1, len(colsU), self.colsU))
+                else:
+                    need_widthU = keep_colU.stop - keep_colU.start
+                    # XXX: here we used to check actual #colsU matched expected (check matrix not ragged)
+                    # now we only discover where lines are short
+                    colsU = self.splitn(rowU, line, need_widthU)
+
                 if self.shortrowU == -1 or len(line) < self.shortrowU:
                     self.shortrowU = len(line)
                     print("    shortrow:%d" % self.shortrowU)
@@ -111,15 +115,8 @@ class TextTransposer:
                 if rowU == self.rowsU:
                     break       # eof
                 self.fd_in.seek(self.rowU_tell[rowU])
-                txt = self.fd_in.readline()
-                colsU = txt.split(self.separator)
-                colsU[-1] = colsU[-1].rstrip(b'\n')
-#                txt = self.fd_in.read(need_bytes)
-  # need to trim LF
-#                txti = iter(txt) # here we split manually
-#                for x in keep_colU:
-#                    cell_len = 0
-
+                txt = self.fd_in.read(need_bytes)
+                colsU = self.splitn(rowU, txt, need_widthU)
                 rowU += 1
                 self.stash_rowU(rowU, keep_colU, colsU)
 
@@ -137,6 +134,26 @@ class TextTransposer:
 
         print("  done loop %d, next is col %d" % (passnum, keep_colU.stop))
         return (keep_colU.stop, None)[keep_colU.stop == self.colsU]
+
+    def splitn(self, rowU, inp, n):
+        out = []
+        pos = 0
+        sep = self.separator
+        maxpos = len(inp)
+        while n > 0:
+            # strip leading sep
+            while inp[pos] == sep[0]:
+                pos += 1
+            start = pos
+            while pos < maxpos and inp[pos] != sep[0] and inp[pos] != (b'\n')[0]:
+                pos += 1
+            out.append(inp[start:pos])
+            n -= 1
+            if (pos >= maxpos or inp[pos] == (b'\n')[0]) and n > 0:
+                raise Exception("Early b'\n' %s, need another %d columns (pos:%d maxpos:%d got:%s)" %
+                                (("on row %d" % rowU, "during %s" % repr(inp))[rowU == None],
+                                 n, pos, maxpos, repr(out)))
+        return out
 
     def est_rowsU(self, curr_rowU):
         """During first pass, estimate rowsU count from available data.
