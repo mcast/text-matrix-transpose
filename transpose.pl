@@ -131,6 +131,7 @@ sub loop {
         # XXX: here we used to check actual #colsU matched expected (check matrix not ragged)
         # now we only discover where lines are short
         @colsU = split $self->separator, $line, $need_widthU + 1;
+        pop @colsU; # the unwanted tail
         # XXX: using Perl built-in means we aren't checking $need_widthU columns are available
         chomp $colsU[-1]; # has effect only on last column
       }
@@ -166,6 +167,7 @@ sub loop {
       my $nread = $self->fd_in->read($txt, $need_bytes);
       die "$rowU: $! on input" unless defined $nread;
       my @colsU = split $self->separator, $txt, $need_widthU + 1;
+      pop @colsU; # the unwanted tail
       $rowU ++;
       $self->stash_rowU($rowU, $keep_colU, \@colsU);
     }
