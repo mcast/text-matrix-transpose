@@ -137,21 +137,21 @@ sub loop {
       }
 
       if ($self->shortrowU == -1 || length($line) < $self->shortrowU) {
-	$self->shortrowU(length($line));
-	printf "    shortrow:%d\n", $self->shortrowU;
+        $self->shortrowU(length($line));
+        printf "    shortrow:%d\n", $self->shortrowU;
       }
       if (length($line) > $self->longrowU) {
-	$self->longrowU(length($line));
+        $self->longrowU(length($line));
           printf "    longrow:%d\n", $self->longrowU;
       }
 
       my $longest = max(map { length($_) } @colsU);
       $rowU ++;
       if ($longest > $self->longcell) {
-	$self->longcell($longest);
-	$keep_colU = $self->set_memlimit($keep_colU, $self->est_rowsU($rowU));
+        $self->longcell($longest);
+        $keep_colU = $self->set_memlimit($keep_colU, $self->est_rowsU($rowU));
       } elsif ($rowU % 1000 == 0) {
-	$keep_colU = $self->set_memlimit($keep_colU, $self->est_rowsU($rowU));
+        $keep_colU = $self->set_memlimit($keep_colU, $self->est_rowsU($rowU));
       }
       $self->rowU_tell->[$rowU] = $self->fd_in->tell();
       $self->stash_rowU($rowU, $keep_colU, \@colsU);
@@ -162,7 +162,7 @@ sub loop {
       printf "  rowU:%d\n", $rowU unless $rowU % 10000;
       last if $rowU == $self->rowsU; # eof
       $self->fd_in->seek($self->rowU_tell->[$rowU], 0)
-	or die "seek failed: $!";
+        or die "seek failed: $!";
       my $txt;
       my $nread = $self->fd_in->read($txt, $need_bytes);
       die "$rowU: $! on input" unless defined $nread;
@@ -302,7 +302,7 @@ sub size  {
 sub to_string {
   my ($self) = @_;
   return sprintf('[%d, %d)', # Interval notation
-		 $self->start, $self->stop);
+                 $self->start, $self->stop);
 }
 
 1;
