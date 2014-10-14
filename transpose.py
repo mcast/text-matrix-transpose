@@ -21,7 +21,6 @@ class TextTransposer:
         self.fd_out = fd_out
         self.rowU_tell = {} # seek here to get next value from within the row
         self.rowT = {}      # collect output
-        self.collected_size = 0 # in bytes, ignoring python overhead
         self.mem_budget = 100 * 1024 * 1024 # in bytes, ignoring Python overheads & rowU_tell
 
         # no data yet
