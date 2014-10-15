@@ -214,18 +214,19 @@ sub est_rowsU {
 
 sub stash_rowU {
   my ($self, $rowU, $keep_colU, $colsU_l) = @_;
-  my @stashable = Range->new($keep_colU->start + 1, $keep_colU->stop)->incl;
+  my $kcUs = $keep_colU->start;
+  my @stashable = ($kcUs + 1, $keep_colU->stop - 1);
   # We don't stash colsU[0], because we can stream
   # it during reading.  Still, keep it in the range to simplify
   # other logic / not yet refactored
-  print { $self->fd_out } $self->separator unless $rowU == 1; # non-stashed, sep before
+  my $out = $self->fd_out;
+  print {$out} $self->separator unless $rowU == 1; # non-stashed, sep before
   my $rT = $self->rowT;
-  my $kcUs = $keep_colU->start;
   foreach my $x ($stashable[0] .. $stashable[1]) {
     push @{ $rT->{$x} }, $colsU_l->[ $x - $kcUs ];
   }
   my $nonstash = $colsU_l->[0]; # non-stashed
-  print { $self->fd_out } $nonstash;
+  print {$out} $nonstash;
   $self->rowU_tell->[ $rowU-1 ] += length($nonstash) + 1; # +1 for sep after
   return;
 }
@@ -250,6 +251,7 @@ sub dump_kept {
     }
   }
   $self->rowT({});
+  undef $rT; # suspect a garbage collection delay on the old contents, was showing for return
   return;
 }
 
@@ -310,7 +312,7 @@ sub stop  { $_[0][1] }
 
 sub size  {
   my ($self) = @_;
-  return $self->stop - $self->start;
+  return $self->[1] - $self->[0];
 }
 
 sub to_string {
