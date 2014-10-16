@@ -216,7 +216,7 @@ sub est_rowsU {
   }
 }
 
-sub stash_rowU {
+sub stash_rowU_list {
   my ($self, $rowU, $keep_colU, $colsU_l) = @_;
   my $kcUs = $keep_colU->start;
   my @stashable = ($kcUs + 1, $keep_colU->stop - 1);
@@ -228,6 +228,25 @@ sub stash_rowU {
   my $rT = $self->rowT;
   foreach my $x ($stashable[0] .. $stashable[1]) {
     push @{ $rT->{$x} }, $colsU_l->[ $x - $kcUs ];
+  }
+  my $nonstash = $colsU_l->[0]; # non-stashed
+  print {$out} $nonstash;
+  $self->rowU_tell->[ $rowU-1 ] += length($nonstash) + 1; # +1 for sep after
+  return;
+}
+
+sub stash_rowU_scalar {
+  my ($self, $rowU, $keep_colU, $colsU_l) = @_;
+  my $kcUs = $keep_colU->start;
+  my @stashable = ($kcUs + 1, $keep_colU->stop - 1);
+  # We don't stash colsU[0], because we can stream
+  # it during reading.  Still, keep it in the range to simplify
+  # other logic / not yet refactored
+  my $out = $self->fd_out;
+  print {$out} $self->separator unless $rowU == 1; # non-stashed, sep before
+  my $rT = $self->rowT;
+  foreach my $x ($stashable[0] .. $stashable[1]) {
+    $rT->{$x} } .= $colsU_l->[ $x - $kcUs ];
   }
   my $nonstash = $colsU_l->[0]; # non-stashed
   print {$out} $nonstash;
