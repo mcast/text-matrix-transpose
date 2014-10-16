@@ -323,7 +323,7 @@ sub set_memlimit {
   $self->bytes_per_rowT($bytes_per_rowT);
   my $old_colU_keepn = $self->colU_keepn;
   my $new_colU_keepn = int($self->mem_budget / $bytes_per_rowT
-                           / 1.00); # XXX: empirical fudge factor ..?
+                           / 1.67); # XXX: empirical fudge factor ..?  1.67 isn't nearly enough, we're way over budget!
   $self->colU_keepn( min($old_colU_keepn, $new_colU_keepn + 1) ); # =1 for the non-stashed
   if ($new_colU_keepn != $old_colU_keepn) {
     printf "      set_memlimit(%s, %.3f MiB, rowsU:%d) bytes_per_rowT:%d for longcell:%d gives colU:%d\n",
