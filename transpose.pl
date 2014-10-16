@@ -95,12 +95,15 @@ sub loop {
   my $rowU = 0;
   my $keep_colU; # init on first row, or subsequent pass
   my ($need_widthU, $need_bytes);
+  my $fd_in = $self->fd_in;
+  my $sep = $self->separator;
+  my $rUt = $self->rowU_tell;
 
   if ($passnum == 0) {
-    $self->rowU_tell->[$rowU] = $self->fd_in->tell();
-    $self->fd_in_size(-s $self->fd_in);
+    $rUt->[$rowU] = $fd_in->tell();
+    $self->fd_in_size(-s $fd_in);
   } else {
-    $self->fd_in->seek($self->rowU_tell->[0], 0)
+    $fd_in->seek($rUt->[0], 0)
       or die "seek failed: $!";
 
     $keep_colU = Range->new($colU_start, min($self->colsU, $colU_start + $self->colU_keepn));
@@ -112,13 +115,13 @@ sub loop {
   if ($passnum == 0) {
     while (1) {
       printf "  rowU:%d\n", $rowU unless $rowU % 10000;
-      my $line = $self->fd_in->getline;
+      my $line = $fd_in->getline;
       last unless defined $line; # eof
 
       my @colsU;
       if ($self->colsU < 0) {
         # first row seen ever
-        @colsU = split $self->separator, $line;
+        @colsU = split $sep, $line;
         shift @colsU while $colsU[0] eq ''; # leading space on the row
         chomp $colsU[-1];
 
@@ -130,7 +133,7 @@ sub loop {
         $need_widthU = $keep_colU->size;
         # XXX: here we used to check actual #colsU matched expected (check matrix not ragged)
         # now we only discover where lines are short
-        @colsU = split $self->separator, $line, $need_widthU + 1;
+        @colsU = split $sep, $line, $need_widthU + 1;
         pop @colsU; # the unwanted tail
         # XXX: using Perl built-in means we aren't checking $need_widthU columns are available
         chomp $colsU[-1]; # has effect only on last column
@@ -153,7 +156,7 @@ sub loop {
       } elsif ($rowU % 1000 == 0) {
         $keep_colU = $self->set_memlimit($keep_colU, $self->est_rowsU($rowU));
       }
-      $self->rowU_tell->[$rowU] = $self->fd_in->tell();
+      $rUt->[$rowU] = $fd_in->tell();
       $self->stash_rowU($rowU, $keep_colU, \@colsU);
     }
 
@@ -161,12 +164,12 @@ sub loop {
     while (1) {
       printf "  rowU:%d\n", $rowU unless $rowU % 10000;
       last if $rowU == $self->rowsU; # eof
-      $self->fd_in->seek($self->rowU_tell->[$rowU], 0)
+      $fd_in->seek($rUt->[$rowU], 0)
         or die "seek failed: $!";
       my $txt;
-      my $nread = $self->fd_in->read($txt, $need_bytes);
+      my $nread = $fd_in->read($txt, $need_bytes);
       die "$rowU: $! on input" unless defined $nread;
-      my @colsU = split $self->separator, $txt, $need_widthU + 1;
+      my @colsU = split $sep, $txt, $need_widthU + 1;
       pop @colsU; # the unwanted tail
       $rowU ++;
       $self->stash_rowU($rowU, $keep_colU, \@colsU);
@@ -199,14 +202,15 @@ sub loop {
 # Might do better counting actual memory usage, or bytes stashed in rowT[].
 sub est_rowsU {
   my ($self, $curr_rowU) = @_;
+  my $sz = $self->fd_in_size;
   my $fpos = $self->fd_in->tell();
-  my $min_rows = $self->fd_in_size / $self->longrowU;
-  my $seen_frac = $fpos / $self->fd_in_size;
+  my $min_rows = $sz / $self->longrowU;
+  my $seen_frac = $fpos / $sz;
   if ($seen_frac < 0.25) {
     # near start of file => inaccurate stats, give a low estimate
     return max(int($min_rows), $curr_rowU);
   } else {
-    my $avglen_rows = $curr_rowU * $self->fd_in_size / $fpos;
+    my $avglen_rows = $curr_rowU * $sz / $fpos;
     # max_rows = self.fd_in_size / self.shortrowU
     return max(int($avglen_rows), $curr_rowU);
   }
