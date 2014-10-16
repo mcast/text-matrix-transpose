@@ -1,4 +1,5 @@
 #! /usr/bin/perl
+die "broken in this version";
 
 package Transposer;
 
@@ -157,7 +158,7 @@ sub loop {
         $keep_colU = $self->set_memlimit($keep_colU, $self->est_rowsU($rowU));
       }
       $rUt->[$rowU] = $fd_in->tell();
-      $self->stash_rowU($rowU, $keep_colU, \@colsU);
+      $self->stash_rowU_list($rowU, $keep_colU, \@colsU);
     }
 
   } else {
@@ -172,13 +173,14 @@ sub loop {
       my @colsU = split $sep, $txt, $need_widthU + 1;
       pop @colsU; # the unwanted tail
       $rowU ++;
-      $self->stash_rowU($rowU, $keep_colU, \@colsU);
+      $self->stash_rowU_scalar($rowU, $keep_colU, \@colsU);
     }
   }
 
-  $self->rowsU($rowU) if $passnum == 0;
-  $self->dump_kept($keep_colU);
   if ($passnum == 0) {
+    $self->rowsU($rowU);
+    $self->dump_kept_list($keep_colU);
+
     # re-evaluate, now we have a real rowsU
     $self->set_memlimit($keep_colU, $rowU);
     if ($self->colU_keepn == 1) {
@@ -188,6 +190,8 @@ sub loop {
                    $self->bytes_per_rowT / $mib,
                    $self->colsT, $self->longcell);
     }
+  } else {
+    $self->dump_kept_scalar($keep_colU);
   }
 
   printf "  done loop %d, next is col %d\n", $passnum, $keep_colU->stop;
@@ -223,18 +227,51 @@ sub stash_rowU_list {
   # We don't stash colsU[0], because we can stream
   # it during reading.  Still, keep it in the range to simplify
   # other logic / not yet refactored
-  my $out = $self->fd_out;
-  print {$out} $self->separator unless $rowU == 1; # non-stashed, sep before
+  $self->stream($rowU, $colsU_l);
   my $rT = $self->rowT;
   foreach my $x ($stashable[0] .. $stashable[1]) {
     push @{ $rT->{$x} }, $colsU_l->[ $x - $kcUs ];
   }
+  return;
+}
+
+sub stream {
+  my ($self, $rowU, $colsU_l) = @_;
   my $nonstash = $colsU_l->[0]; # non-stashed
+  my $out = $self->fd_out;
+  print {$out} $self->separator unless $rowU == 1; # non-stashed, sep before
   print {$out} $nonstash;
   $self->rowU_tell->[ $rowU-1 ] += length($nonstash) + 1; # +1 for sep after
   return;
 }
 
+sub dump_kept_list {
+  my ($self, $keep_colU) = @_;
+  my $fd_out = $self->fd_out;
+  my $sep = $self->separator;
+  my $rUt = $self->rowU_tell;
+  my $rT = $self->rowT;
+  my @widthT = Range->new(0, $self->colsT)->incl;
+  my $lastT = $self->colsT - 1;
+  my @stashable = Range->new($keep_colU->start + 1, $keep_colU->stop)->incl;
+
+
+  print {$fd_out} "\n"; # close the non-stashed output
+  foreach my $y (@stashable[0] .. $stashable[1]) {
+    foreach my $x ($widthT[0] .. $widthT[1]) {
+      my $cell = $rT->{$y}[$x];
+      $rUt->[$x] += length($cell) + 1; # +1 for sep
+      print {$fd_out} $cell, $x == $lastT ? "\n" : $sep;
+    }
+  }
+  $self->rowT({});
+  undef $rT; # suspect a garbage collection delay on the old contents, was showing for return
+  return;
+}
+
+
+# Same, but one scalar instead of list of cells.
+# Update all rowU_tell here, because we know keep_colU->size
 sub stash_rowU_scalar {
   my ($self, $rowU, $keep_colU, $colsU_l) = @_;
   my $kcUs = $keep_colU->start;
@@ -242,19 +279,19 @@ sub stash_rowU_scalar {
   # We don't stash colsU[0], because we can stream
   # it during reading.  Still, keep it in the range to simplify
   # other logic / not yet refactored
-  my $out = $self->fd_out;
-  print {$out} $self->separator unless $rowU == 1; # non-stashed, sep before
+  $self->stream($rowU, $colsU_l);
   my $rT = $self->rowT;
+  my $lenU = 0;
   foreach my $x ($stashable[0] .. $stashable[1]) {
-    $rT->{$x} } .= $colsU_l->[ $x - $kcUs ];
+    my $cell = $colsU_l->[ $x - $kcUs ];
+    $rT->{$x} .= $cell;
+    $lenU += length($cell) + 1; # +1 for sep
   }
-  my $nonstash = $colsU_l->[0]; # non-stashed
-  print {$out} $nonstash;
-  $self->rowU_tell->[ $rowU-1 ] += length($nonstash) + 1; # +1 for sep after
+  $self->rowU_tell->[$rowU] += $lenU;
   return;
 }
 
-sub dump_kept {
+sub dump_kept_scalar__BROKEN {
   my ($self, $keep_colU) = @_;
   my $fd_out = $self->fd_out;
   my $sep = $self->separator;
